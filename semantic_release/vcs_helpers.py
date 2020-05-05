@@ -26,14 +26,20 @@ def check_repo():
 
 def get_commit_log(from_rev=None):
     """
-    Yields all commit messages from last to first.
+    Yields all commit messages from last to first. It uses notation 'HEAD...from_rev'\n
     """
-
     check_repo()
     rev = None
     if from_rev:
         rev = '...{from_rev}'.format(from_rev=from_rev)
     for commit in repo.iter_commits(rev):
+        yield (commit.hexsha, commit.message)
+
+
+def my_commit_log(revision):
+    """Yields all commit messages from last (most recent) to first. It uses notation 'HEAD...from_rev'\n"""
+    check_repo()
+    for commit in repo.iter_commits('...{}'.format(revision)):
         yield (commit.hexsha, commit.message)
 
 

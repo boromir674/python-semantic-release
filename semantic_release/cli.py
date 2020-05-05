@@ -5,18 +5,20 @@ import sys
 
 import click
 import ndebug
+import datetime
 
 from semantic_release import ci_checks
 from semantic_release.errors import GitError, ImproperConfigurationError
 
 from .history import (evaluate_version_bump, get_current_version, get_new_version,
                       get_previous_version, set_new_version)
-from .history.logs import generate_changelog, markdown_changelog
+from .history.logs import generate_changelog, markdown_changelog, my_get_changelog, rst_changelog
 from .hvcs import check_build_status, check_token, get_domain, get_token, post_changelog
 from .pypi import upload_to_pypi
 from .settings import config, overload_configuration
 from .vcs_helpers import (checkout, commit_new_version, get_current_head_hash,
                           get_repository_owner_and_name, push_new_version, tag_new_version)
+from .generate import update_setup_py, update_changelog_rst, update_readme
 
 debug = ndebug.create(__name__)
 
@@ -209,6 +211,89 @@ def publish(**kwargs):
         click.echo('Version failed, no release will be published.', err=True)
 
 
+########################################
+
+def my_changelog(**kwargs):
+    """
+    Generates the changelog from most recent tag found on master till the HEAD
+    :raises ImproperConfigurationError: if there is no tag found
+    """
+    current_version = get_current_version()
+    debug('my_changelog got current_version', current_version)
+
+    if current_version is None:
+        raise ImproperConfigurationError(
+            "Unable to get the current version. "
+            "Make sure semantic_release.version_variable "
+            "is setup correctly"
+        )
+
+    changelog = my_get_changelog(current_version)
+    debug('my_changelog computed changelog:')
+    debug('\n'.join([_ for _ in changelog]))
+    click.echo(rst_changelog('toy_version', changelog, 'toy-date', header=True))
+
+
+def my_version(**kwargs):
+    """Detects the new version according to git log and semver. Writes the new version in"""
+    try:
+        current_version = get_current_version()
+    except GitError as e:
+        click.echo(click.style(str(e), 'red'), err=True)
+        return False
+
+    click.echo('Current version: {0}'.format(current_version))
+    level_bump = evaluate_version_bump(current_version, kwargs['force_level'])
+    debug('Level bump: {}'.format(level_bump))
+    new_version = get_new_version(current_version, level_bump)
+    debug('New version: {}'.format(new_version))
+    if new_version == current_version:
+        click.echo(click.style('New version is the same as the previous. No release will be made.', fg='yellow'))
+        return False
+
+    if config.getboolean('semantic_release', 'check_build_status'):
+        click.echo('Checking build status..')
+        owner, name = get_repository_owner_and_name()
+        if not check_build_status(owner, name, get_current_head_hash()):
+            click.echo(click.style('The build has failed', 'red'))
+            return False
+        click.echo(click.style('The build was a success, continuing the release', 'green'))
+    click.echo('Bumping with a {0} version to {1}.'.format(level_bump, new_version))
+    debug('New version: {}'.format(new_version))
+    return current_version, new_version
+
+
+def generate(**kwargs):
+    """
+    Update version strings.\n
+    :param kwargs:
+    :return:
+    """
+    debug("generate: {}".format(kwargs))
+    from_version, new_version = my_version(**kwargs)
+
+    # update version in file specified by semantic_release.version_variable (ie src/my_package/__init__.py)
+    set_new_version(new_version)
+    update_setup_py(new_version)
+    update_changelog_rst(from_version, new_version, kwargs.get('date', datetime.datetime.today().strftime('%Y-%m-%d')), section='Changelog')
+    update_readme(from_version, new_version)
+    # click.echo(click.style('Posting changelog failed.', 'red'), err=True)
+
+    #
+    # else:
+    #     click.echo(
+    #             click.style('Missing token: cannot post changelog', 'red'), err=True)
+    #
+    #     click.echo(click.style('New release published', 'green'))
+    # else:
+    #     click.echo('Version failed, no release will be published.', err=True)
+    return True
+
+
+
+########################################
+
+
 def filter_output_for_secrets(message):
     output = message
     for secret_name in SECRET_NAMES:
@@ -275,6 +360,41 @@ def cmd_version(**kwargs):
     except Exception as error:
         click.echo(click.style(filter_output_for_secrets(str(error)), 'red'), err=True)
         exit(1)
+
+
+##################### MY CHANGELOG #####################
+@main.command(name='my_changelog', help=my_changelog.__doc__)
+@common_options
+def cmd_my_changelog(**kwargs):
+    try:
+        return my_changelog(**kwargs)
+    except Exception as error:
+        click.echo(click.style(filter_output_for_secrets(str(error)), 'red'), err=True)
+        exit(1)
+
+
+@main.command(name='my_version', help=my_version.__doc__)
+@common_options
+def cmd_my_version(**kwargs):
+    try:
+        return bool(my_version(**kwargs))
+    except Exception as error:
+        click.echo(click.style(filter_output_for_secrets(str(error)), 'red'), err=True)
+        exit(1)
+
+
+@main.command(name='generate', help=generate.__doc__)
+@common_options
+def cmd_generate(**kwargs):
+    debug("GG")
+    return generate(**kwargs)
+    # try:
+    #
+    # except Exception as error:
+    #     click.echo(click.style(filter_output_for_secrets(str(error)), 'red'), err=True)
+    #     exit(1)
+
+
 
 
 if __name__ == '__main__':

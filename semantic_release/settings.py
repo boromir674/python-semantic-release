@@ -33,7 +33,9 @@ def _config():
                     parser['semantic_release'][key] = str(value)
             except toml.TomlDecodeError:
                 debug("Could not decode pyproject.toml")
-
+    parser['semantic_release']['setup_py'] = os.path.join(current_dir, 'setup.py')
+    parser['semantic_release']['changelog_rst'] = os.path.join(current_dir, 'CHANGELOG.rst')
+    parser['semantic_release']['readme_rst'] = os.path.join(current_dir, 'README.rst')
     return parser
 
 
