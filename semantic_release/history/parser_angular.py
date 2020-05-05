@@ -21,6 +21,8 @@ TYPES = {
     'ci': 'ci',
     'perf': 'performance',
     'chore': 'chore',
+    'revert': 'revert',
+    'improvement': 'improvement'
 }
 
 re_parser = re.compile(

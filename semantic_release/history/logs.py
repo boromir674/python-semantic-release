@@ -7,7 +7,7 @@ import ndebug
 
 from ..errors import UnknownCommitMessageStyleError
 from ..settings import config, current_commit_parser
-from ..vcs_helpers import get_commit_log
+from ..vcs_helpers import get_commit_log, my_commit_log
 
 debug = ndebug.create(__name__)
 
@@ -79,12 +79,12 @@ def generate_changelog(from_version: str, to_version: str = None) -> dict:
     """
     debug('generate_changelog("{}", "{}")'.format(from_version, to_version))
     changes: dict = {
+        'breaking': [],
+        'documentation': [],
         'feature': [],
         'fix': [],
-        'documentation': [],
-        'refactor': [],
-        'breaking': [],
         'performance': [],
+        'refactor': [],
     }
 
     found_the_release = to_version is None
@@ -151,3 +151,88 @@ def markdown_changelog(version: str, changelog: dict, header: bool = False) -> s
             output += '* {0} ({1})\n'.format(item[1], item[0])
 
     return output
+
+
+#############################################
+
+def my_get_changelog(from_version: str) -> dict:
+    """
+    Generates a changelog from given version till HEAD.\n
+    :param from_version: The last version not in the changelog. The changelog
+                         will be generated from the commit after this one.
+    :return: a dict with different changelog sections
+    """
+    debug('my_get_changelog: "{}"'.format(from_version))
+    changes: dict = {
+        'feature': [],
+        'fix': [],
+        'documentation': [],
+        'refactor': [],
+        'breaking': [],
+        'performance': [],
+        'improvement': []
+    }
+    debug('my_get_changelog: building changelog between previous tagged version and HEAD')
+
+    for _hash, commit_message in my_commit_log('v{0}'.format(from_version)):
+        try:
+            # [level_bump [3,2,1], type [feature, fix, etc], 'scope', 'subject']
+            message = current_commit_parser()(commit_message)
+            if message[1] not in changes:
+                continue
+
+            changes[message[1]].append((_hash, message[3][0]))
+
+            if message[3][1] and 'BREAKING CHANGE' in message[3][1]:
+                parts = re_breaking.match(message[3][1])
+                if parts:
+                    changes['breaking'].append((_hash, parts.group(1)))
+
+            if message[3][2] and 'BREAKING CHANGE' in message[3][2]:
+                parts = re_breaking.match(message[3][2])
+                if parts:
+                    changes['breaking'].append((_hash, parts.group(1)))
+
+        except UnknownCommitMessageStyleError as err:
+            debug('Ignoring', err)
+            pass
+
+    return changes
+
+
+def rst_changelog(new_version: str, changelog: dict, date: str = None, header: bool = False) -> str:
+    """
+    Generates an rst version of the changelog. It preserves sections\n
+    - 'feature'
+    - 'fix'
+    - 'breaking'
+    - 'documentation'
+    - 'performance'
+
+    :param str new_version: A string with the version number.
+    :param dict changelog: A dict holding the items per section from generate_changelog.
+    :param bool header: A boolean that decides whether a changes subsection should be included or not.
+    :param str date: an optional date to include in subsection generated along with the version
+    :return: The rst formatted changelog.
+    """
+    debug('rst_changelog(new_version="{}", header={}, changelog=...)'.format(new_version, header))
+    if new_version[0] == 'v':
+        new_version = new_version[1:]
+    b = new_version
+    if date:
+        b += ' ({})'.format(date)
+    b += '\n{}'.format('-'*(1+ len(b)))
+
+    s = '^'
+    if header:
+        header = 'Changes'
+        b += '\n\n{}\n{}'.format(header, len(header)*s)
+        s = '"'
+    b += '\n\n' + '\n\n'.join([get_change_type(changelog, section, s) for section in CHANGELOG_SECTIONS if changelog[section]])
+    return b.strip()
+
+
+def get_change_type(changelog: dict, section: str, symbol: str) -> str:
+    return '{}\n{}\n{}'.format(section, len(section)*symbol, '\n'.join('- {}'.format(commit_message) for commit_hash, commit_message in changelog[section]))
+
+#################################################
