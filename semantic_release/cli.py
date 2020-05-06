@@ -235,7 +235,7 @@ def my_changelog(**kwargs):
 
 
 def my_version(**kwargs):
-    """Detects the new version according to git log and semver. Writes the new version in"""
+    """Reports the new version to use for the release, derived by reading the git log and sem-ver. Requires both a tag on master branch (ie git tag v0.5.0) and config file with 'semantic_release' section"""
     try:
         current_version = get_current_version()
     except GitError as e:
@@ -265,7 +265,8 @@ def my_version(**kwargs):
 
 def generate(**kwargs):
     """
-    Update version strings.\n
+    Update version strings. Requires the 'semantic_release' section in config and to find a CHANGELOG.rst file.
+    Tries to update version string in setup.py and in README.rst. Fails gracefully in both cases.\n
     :param kwargs:
     :return:
     """
@@ -274,9 +275,16 @@ def generate(**kwargs):
 
     # update version in file specified by semantic_release.version_variable (ie src/my_package/__init__.py)
     set_new_version(new_version)
-    update_setup_py(new_version)
+    try:
+        update_setup_py(new_version)
+    except Exception as e:
+        print(e)
     update_changelog_rst(from_version, new_version, kwargs.get('date', datetime.datetime.today().strftime('%Y-%m-%d')), section='Changelog')
-    update_readme(from_version, new_version)
+    try:
+        update_readme(from_version, new_version)
+    except Exception as e:
+        print(e)
+
     # click.echo(click.style('Posting changelog failed.', 'red'), err=True)
 
     #
