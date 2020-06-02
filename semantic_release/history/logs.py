@@ -20,9 +20,11 @@ LEVELS = {
 CHANGELOG_SECTIONS = [
     'feature',
     'fix',
+    'test',
     'breaking',
     'documentation',
     'performance',
+    'ci',
 ]
 
 re_breaking = re.compile('BREAKING CHANGE: (.*)')
