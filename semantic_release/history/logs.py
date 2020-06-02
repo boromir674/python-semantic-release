@@ -166,11 +166,13 @@ def my_get_changelog(from_version: str) -> dict:
     changes: dict = {
         'feature': [],
         'fix': [],
+        'test': [],
         'documentation': [],
         'refactor': [],
         'breaking': [],
         'performance': [],
-        'improvement': []
+        'improvement': [],
+        'ci': []
     }
     debug('my_get_changelog: building changelog between previous tagged version and HEAD')
 
