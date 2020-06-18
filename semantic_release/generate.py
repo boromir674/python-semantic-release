@@ -47,11 +47,18 @@ def update_readme(from_version, new_version):
     """Call this method to update potentially found diff strings (ie compare/v1.2.1...master, compare/v1.4..dev) and paths to svg images (ie v1.2.1.svg) in readme.rst\n
         Limitations: only supports diff strings comparing either to 'master' or 'dev' branches
     """
+    print("Trying to update references to the 'version' string found in either README.rst or README.md files.")
+    try:
+        return _update_readme(from_version, new_version, config.get('semantic_release', 'readme_rst'))
+    except FileNotFoundError as e:
+        print(e)
+    return _update_readme(from_version, new_version, config.get('semantic_release', 'readme_md'))
 
-    readme_file = config.get('semantic_release', 'readme_rst')
+
+def _update_readme(from_version, new_version, readme_file):
     with open(readme_file, mode='r') as fr:
         content = fr.read()
-    
+
     content = re.sub(r'v{old_version}.svg'.format(old_version=from_version),
                      r'v{new_version}.svg'.format(new_version=new_version),
                      content
