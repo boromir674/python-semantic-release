@@ -62,8 +62,11 @@ def get_current_version() -> str:
 
     :return: A string with the current version number
     """
+    debug('Finding version tag that should correspond to the previously released version of the software')
     if config.get('semantic_release', 'version_source') == 'tag':
+        debug('Selecting tag by picking the latest tag found on the commit history')
         return get_current_version_by_tag()
+    debug('Selecting tag with the same version as the one found hardcoded in a __version__ string in the code')
     return get_current_version_by_config_file()
 
 
